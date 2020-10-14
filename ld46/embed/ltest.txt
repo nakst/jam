@@ -1,0 +1,22 @@
+                    
+                    
+XXXXXXXXXXXXXXXXXXXX
+X          X       X
+X                  X
+X                  X
+X            XXXXXXX
+X       a  t X     X
+X        #         X
+X                  X
+X                  X
+X   k     d        X
+X                  X
+X       X   b  ^   X
+X                  X
+X                  X
+X       B          X
+X                  X
+X                  X
+XXXXXXXXXXXXXXXXXXXX
+
+steps=1000

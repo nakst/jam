@@ -1,0 +1,23 @@
+                    
+                    
+XXXXXXXXXXXXXXXXXXXX
+X                  X
+X                  X
+X         XXX      X
+X         XFX      X
+X         X X      X
+X     XXXXX X      X
+X     X#  l X      X
+X     XXl x X      X
+X      X    X      X
+X     XX    X      X
+X     X     X      X
+X     X x x X      X
+X     X     X      X
+X     XXXXXXX      X
+X                  X
+X                  X
+XXXXXXXXXXXXXXXXXXXX
+
+steps=35
+bgm=0
