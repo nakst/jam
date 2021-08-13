@@ -1,0 +1,23 @@
+                    
+                    
+XXXXXXXXXXXXXXXXXXXX
+X                  X
+X                  X
+X                  X
+X                  X
+X                  X
+X         F        X
+X                  X
+X                  X
+X         l        X
+X                  X
+X                  X
+X         #        X
+X                  X
+X                  X
+X                  X
+X                  X
+XXXXXXXXXXXXXXXXXXXX
+
+steps=10
+bgm=0
