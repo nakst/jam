@@ -1,10 +1,10 @@
 cd aoc21
 g++ -o runner runner.cpp
-./runner "g++ -O0 -o"
-./runner "g++ -O1 -o"
-./runner "g++ -O2 -o"
-./runner "g++ -O3 -o"
-./runner "clang -O0 -o"
-./runner "clang -O1 -o"
-./runner "clang -O2 -o"
-./runner "clang -O3 -o"
+./runner "g++ -O0"
+./runner "g++ -O1"
+./runner "g++ -O2"
+./runner "g++ -O3"
+./runner "clang -O0"
+./runner "clang -O1"
+./runner "clang -O2"
+./runner "clang -O3"

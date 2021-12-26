@@ -10,14 +10,16 @@ int main(int argc, char **argv) {
 	char call[128];
 
 	for (int i = 1; i <= 25; i++) {
-		sprintf(call, "%s day%d code%d.cpp", argv[1], i, i); 
-		system(call);
 #ifdef WIN32
-		sprintf(call, "day%d > NUL", i); 
+		sprintf(call, "%s code%d.cpp", argv[1], i, i); 
+		system(call);
+		sprintf(call, "code%d > NUL", i); 
 		uint64_t start, end, frequency;
 		QueryPerformanceFrequency((LARGE_INTEGER *) &frequency);
 		QueryPerformanceCounter((LARGE_INTEGER *) &start);
 #else
+		sprintf(call, "%s -o day%d code%d.cpp", argv[1], i, i); 
+		system(call);
 		sprintf(call, "./day%d > /dev/null", i); 
 		struct timespec time;
 		clock_gettime(CLOCK_MONOTONIC, &time);
