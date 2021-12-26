@@ -16,8 +16,9 @@ jobs:
     runs-on: windows-2019
     steps:
       - name: checkout
-        uses: actions/checkout@v2   
+        uses: actions/checkout@v2
       - name: aoc21 solutions
+        shell: cmd
         run: |
           cd aoc21
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -version [16.0^,17.0^) -requires Microsoft.VisualStudio.Workload.NativeDesktop -property installationPath`) do set VS=%%i
