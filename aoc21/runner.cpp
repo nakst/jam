@@ -34,8 +34,12 @@ int main(int argc, char **argv) {
 		uint64_t end = (uint64_t) time.tv_sec * 1000000000 + time.tv_nsec;
 		uint32_t timeMs = (end - start) / 1000000;
 #endif
-		printf("day %d (%s): %u ms\n", i, argv[1], timeMs);
+		fprintf(stderr, "day %d (%s): %u ms\n", i, argv[1], timeMs);
+#ifdef WIN32
+		sprintf(call, "del code%d", i); 
+#else
 		sprintf(call, "rm day%d", i); 
+#endif
 		system(call);
 	}
 
