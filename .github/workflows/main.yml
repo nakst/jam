@@ -6,13 +6,17 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Test AOC21 solutions
-        run: |
-          cd aoc21
-          gcc -o runner runner.cpp
-          ./runner
+      - name: checkout
+        uses: actions/checkout@v2   
+      - name: aoc21 solutions
+        run: cd aoc21 && gcc -o runner runner.cpp && ./runner
+  build-windows:
+    runs-on: windows-2019
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2   
+      - name: aoc21 solutions
+        run: cd aoc21 && cl runner.cpp && runner
+        
