@@ -1,5 +1,5 @@
 cd aoc21
-gcc -o runner runner.cpp
+g++ -o runner runner.cpp
 ./runner "g++ -O0 -o"
 ./runner "g++ -O1 -o"
 ./runner "g++ -O2 -o"
