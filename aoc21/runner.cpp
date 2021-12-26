@@ -11,7 +11,7 @@ int main(int argc, char **argv) {
 
 	for (int i = 1; i <= 25; i++) {
 #ifdef WIN32
-		sprintf(call, "%s code%d.cpp", argv[1], i, i); 
+		sprintf(call, "%s /nologo code%d.cpp", argv[1], i, i); 
 		system(call);
 		sprintf(call, "code%d > NUL", i); 
 		uint64_t start, end, frequency;
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 #endif
 		fprintf(stderr, "day %d (%s): %u ms\n", i, argv[1], timeMs);
 #ifdef WIN32
-		sprintf(call, "del code%d", i); 
+		sprintf(call, "del code%d.exe", i); 
 #else
 		sprintf(call, "rm day%d", i); 
 #endif
