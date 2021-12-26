@@ -11,15 +11,12 @@ jobs:
       - name: checkout
         uses: actions/checkout@v2   
       - name: aoc21 solutions
-        run: cd aoc21 && gcc -o runner runner.cpp && ./runner
+        run: aoc21/build.sh
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - name: checkout
         uses: actions/checkout@v2
       - name: aoc21 solutions
         shell: cmd
-        run: |
-          cd aoc21
-          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -version [16.0^,17.0^) -requires Microsoft.VisualStudio.Workload.NativeDesktop -property installationPath`) do set VS=%%i
-          cl runner.cpp && runner
+        run: call aoc21\build.cmd
