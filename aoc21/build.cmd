@@ -12,7 +12,7 @@ where /Q cl.exe || (
 )
 
 cd aoc21
-cl runner.cpp
+cl /D WIN32 runner.cpp
 ./runner "cl"
 ./runner "cl /O1"
 ./runner "cl /O2"
