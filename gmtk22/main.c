@@ -31,6 +31,12 @@ void *memmove(void *dest, const void *src, size_t n) {
 	}
 }
 
+size_t strlen(const char *s) {
+	const char *t = s;
+	while (*s) s++;
+	return s - t;
+}
+
 extern uint8_t __heap_base;
 #endif
 
@@ -46,6 +52,7 @@ void PlaySound(const char *name, uint32_t nameBytes, bool loop, double volume);
 #define KEY_UP    (38)
 #define KEY_RIGHT (39)
 #define KEY_DOWN  (40)
+#define KEY_BACK  (8)
 
 typedef struct Texture {
 	uint32_t *bits;

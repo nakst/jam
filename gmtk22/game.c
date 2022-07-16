@@ -1,3 +1,13 @@
+// TODO Playtesting feedback:
+// 	- Arrow keys scroll the window in Edge -- probably should allow WASD.
+// 	- Alias undo with Z key.
+// TODO Preload sound effects!
+// TODO Simulate the game slightly faster after undoing until input is allowed again.
+// TODO Puzzle based around pushing a crate past a dice check block.
+// TODO Puzzle based around using a crate for leverage on ice.
+// TODO Puzzle based around using a dice check block for leverage on ice.
+// TODO Puzzle involving stepping off a button and onto a door.
+
 #define SLOT_USED       (1 << 0)
 #define SLOT_DESTROYING (1 << 1)
 
@@ -6,12 +16,12 @@
 #define FLAG_PUSH  (1 << 2)
 #define FLAG_HEAVY (1 << 3)
 
-#define TAG_FLOOR  (1)
-#define TAG_CHECK  (2)
-#define TAG_GOAL   (3)
-#define TAG_ICE    (4)
-#define TAG_BUTTON (5)
-#define TAG_DOOR   (6)
+#define TAG_FLOOR      (1)
+#define TAG_CHECK      (2)
+#define TAG_GOAL       (3)
+#define TAG_ICE        (4)
+#define TAG_BUTTON     (5)
+#define TAG_DOOR       (6)
 
 #define MSG_CREATE  (1)
 #define MSG_DESTROY (2)
@@ -41,7 +51,12 @@ Entity entities[MAX_ENTITIES];
 
 Entity templateStar;
 
-Entity *player;
+#define MAX_UNDO (10000)
+int undoStack[MAX_UNDO];
+int undoPosition;
+bool justPushedUndo;
+
+Entity *player, *controller;
 int dice[6]; // inner, outer, left, right, top, bottom
 
 Texture tileset, font, textureStar;
@@ -54,31 +69,95 @@ int movementQX, movementQY;
 int wonTick;
 int levelNameTick = 1;
 
-char levelName[32];
+int currentLevel;
 
 int fontOffsetX[50];
 int fontOffsetY[50];
 
 void Load();
 
+const char *levels[][15] = {
+#if 0
+	{
+		"/////...............",
+		"/////...............",
+		"/////...............",
+		"/////###............",
+		"/////#b#............",
+		".....#c#########....",
+		".....#pd       #....",
+		".....###########....",
+		"....................",
+		"....................",
+		"....................",
+		"....................",
+		"....................",
+		"level 0\ndevelopers hideout",
+		"",
+	},
+#endif
+
+	{
+		"/////...............",
+		"/////...............",
+		"/////...#########...",
+		"/////...#       #...",
+		"/////...# #####i#...",
+		".....#### #...#i#...",
+		".....#    #...#i#...",
+		".....#3####...#i#...",
+		".....# ########i#...",
+		".#####  4 g 2   #...",
+		".#p    #######  #...",
+		".#######.....####...",
+		"....................",
+		"level 1\nthe journey begins",
+		"",
+	},
+
+	{
+		"/////...............",
+		"/////..############.",
+		"/////..#p       d #.",
+		"/////..#  c    ## #.",
+		"/////..#     b ##4#.",
+		".......#       ## #.",
+		".......########## #.",
+		"..############### #.",
+		"..#g 6 d         c#.",
+		"..#######3##   ##b#.",
+		"......###c#########.",
+		"......###b#######...",
+		"........####........",
+		"level 2\noh wow sokoban mechanics",
+		"press backspace to undo  ",
+	},
+
+	{
+		"/////...............",
+		"/////...............",
+		"/////...............",
+		"/////...............",
+		"/////...............",
+		".........###........",
+		".........#p#........",
+		".........###........",
+		"....................",
+		"....................",
+		"....................",
+		"....................",
+		"....................",
+		"level 3\nit doesnt exist yet",
+		"",
+	},
+};
+
 #if 0
 const char *level1[] = {
-	"/////...............",
-	"/////...............",
-	"/////...............",
-	"/////....####.......",
-	"/////..###  #.......",
-	".......#5   #.......",
-	".......###p##.......",
-	".........###........",
-	"....................",
-	"....................",
-	"....................",
-	"....................",
-	"....................",
 };
 #endif
 
+#if 0
 const char *level1[] = {
 	"/////.########......",
 	"/////.#     #.......",
@@ -94,6 +173,7 @@ const char *level1[] = {
 	"....................",
 	"....................",
 };
+#endif
 
 void NullMessage(Entity *entity, int message) {}
 
@@ -172,6 +252,323 @@ void Player(Entity *entity, int message) {
 	}
 }
 
+bool ControllerStep(bool allowSounds, uint8_t *keysHeld) {
+	static int fontOffsetTick = 0;
+	fontOffsetTick++;
+
+	if ((fontOffsetTick % 40) == 0) {
+		for (int i = 0; i < 50; i++) {
+			fontOffsetX[i] = GetRandomByte() & 1;
+			fontOffsetY[i] = GetRandomByte() & 1;
+		}
+	}
+
+	if (levelNameTick != 0) {
+		if (levelNameTick == 1) {
+			undoPosition = 0;
+			Load();
+		}
+
+		levelNameTick++;
+
+		if (levelNameTick == 180) {
+			levelNameTick = 0;
+		}
+	} else if (wonTick != 0) {
+		wonTick++;
+
+		if (wonTick == 45) {
+			wonTick = 0;
+			levelNameTick = 1;
+
+			for (int i = 0; i < MAX_ENTITIES; i++) {
+				if ((entities[i].slot == SLOT_USED) && &entities[i] != controller) {
+					EntityDestroy(&entities[i]);
+				}
+			}
+		}
+	} else if (movementTick == 0) {
+		if (keysHeld[KEY_LEFT]) {
+			movementTick = 1;
+			movementX = -1;
+			movementY = 0;
+
+			if (undoPosition != MAX_UNDO) {
+				undoStack[undoPosition++] = KEY_LEFT;
+				justPushedUndo = true;
+			}
+		} else if (keysHeld[KEY_RIGHT]) {
+			movementTick = 1;
+			movementX = 1;
+			movementY = 0;
+
+			if (undoPosition != MAX_UNDO) {
+				undoStack[undoPosition++] = KEY_RIGHT;
+				justPushedUndo = true;
+			}
+		} else if (keysHeld[KEY_UP]) {
+			movementTick = 1;
+			movementX = 0;
+			movementY = -1;
+
+			if (undoPosition != MAX_UNDO) {
+				undoStack[undoPosition++] = KEY_UP;
+				justPushedUndo = true;
+			}
+		} else if (keysHeld[KEY_DOWN]) {
+			movementTick = 1;
+			movementX = 0;
+			movementY = 1;
+
+			if (undoPosition != MAX_UNDO) {
+				undoStack[undoPosition++] = KEY_DOWN;
+				justPushedUndo = true;
+			}
+#if 0
+		} else if (movementQX || movementQY) {
+			movementTick = 1;
+			movementX = movementQX;
+			movementY = movementQY;
+#endif
+		} else if (keysHeld[KEY_BACK]) {
+			if (undoPosition) {
+				for (int i = 0; i < MAX_ENTITIES; i++) {
+					if ((entities[i].slot == SLOT_USED) && &entities[i] != controller) {
+						EntityDestroy(&entities[i]);
+					}
+				}
+
+				Load();
+				undoPosition--;
+				uint8_t kh[256];
+				memset(kh, 0, 256);
+
+				for (int i = 0; i < undoPosition; i++) {
+					while (!ControllerStep(false, kh));
+					kh[undoStack[i]] = true;
+					ControllerStep(false, kh);
+					kh[undoStack[i]] = false;
+					undoPosition--;
+				}
+			}
+		}
+
+		return true;
+	} else if (movementTick == 1) {
+		int newX = player->x + movementX * 16;
+		int newY = player->y + movementY * 16;
+		bool valid = true;
+
+		while (true) {
+			if (EntityFind(newX, newY, 1, 1, 0, FLAG_PUSH, NULL)) {
+				newX += movementX * 16;
+				newY += movementY * 16;
+				continue;
+			}
+
+			if (EntityFind(newX, newY, 1, 1, 0, FLAG_SOLID, NULL)) {
+				valid = false;
+			}
+
+			break;
+		}
+		
+		if (!valid) {
+			movementTick = 0;
+			movementQX = movementQY = 0;
+			if (allowSounds) PlaySound("audio/bump_sfx.wav", 18, false, 1.0);
+
+			if (justPushedUndo) {
+				undoPosition--;
+			}
+		} else {
+			movementTick++;
+
+			newX = player->x + movementX * 16;
+			newY = player->y + movementY * 16;
+
+			if (EntityFind(newX, newY, 1, 1, TAG_ICE, 0, NULL)) {
+				if (allowSounds) PlaySound("audio/slip_sfx.wav", 18, false, 1.0);
+			}
+
+			bool pushing = false;
+
+			while (true) {
+				Entity *push = EntityFind(newX, newY, 1, 1, 0, FLAG_PUSH, NULL);
+
+				if (push) {
+					push->push.pushing = true;
+					pushing = true;
+					newX += movementX * 16;
+					newY += movementY * 16;
+					continue;
+				}
+
+				break;
+			}
+
+			if (pushing) {
+				if (allowSounds) PlaySound("audio/crate_sfx.wav", 19, false, 0.9);
+			}
+		}
+
+		justPushedUndo = false;
+	} else if (movementTick == MOVEMENT_TIME) {
+		movementTick = 0;
+
+		if (movementX == -1) {
+			int t = dice[0];
+			dice[0] = dice[2];
+			dice[2] = dice[1];
+			dice[1] = dice[3];
+			dice[3] = t;
+			player->x -= 16;
+		} else if (movementX == 1) {
+			int t = dice[0];
+			dice[0] = dice[3];
+			dice[3] = dice[1];
+			dice[1] = dice[2];
+			dice[2] = t;
+			player->x += 16;
+		} else if (movementY == -1) {
+			int t = dice[0];
+			dice[0] = dice[4];
+			dice[4] = dice[1];
+			dice[1] = dice[5];
+			dice[5] = t;
+			player->y -= 16;
+		} else if (movementY == 1) {
+			int t = dice[0];
+			dice[0] = dice[5];
+			dice[5] = dice[1];
+			dice[1] = dice[4];
+			dice[4] = t;
+			player->y += 16;
+		}
+
+		for (int i = 0; i < MAX_ENTITIES; i++) {
+			if ((entities[i].slot == SLOT_USED) && (entities[i].flags & FLAG_PUSH) && entities[i].push.pushing) {
+				entities[i].x += movementX * 16;
+				entities[i].y += movementY * 16;
+				entities[i].push.pushing = false;
+			}
+		}
+
+		Entity *ice = EntityFind(player->x, player->y, 1, 1, TAG_ICE, 0, NULL);
+
+		if (ice) {
+			movementTick = 1;
+		} else {
+			Entity *goal = EntityFind(player->x, player->y, 1, 1, TAG_GOAL, 0, NULL);
+
+			if (goal) {
+				wonTick = 1;
+				currentLevel++;
+				if (allowSounds) PlaySound("audio/win_sfx.wav", 17, false, 0.8);
+
+				for (int i = 0; i < 20; i++) {
+					Entity *entity = EntityCreate(&templateStar, player->x, player->y, 0);
+					float speed = (GetRandomByte() / 255.0f) * 2.0f + 1.0f;
+					float angle = (GetRandomByte() / 255.0f) * 6.25f;
+					entity->dx = speed * EsCRTcosf(angle);
+					entity->dy = speed * EsCRTsinf(angle);
+				}
+			}
+
+			Entity *check = EntityFind(player->x, player->y, 1, 1, TAG_CHECK, 0, NULL);
+
+			if (check && dice[1] != check->check.target) {
+				movementX = -movementX;
+				movementY = -movementY;
+				movementTick = 1;
+				if (allowSounds) PlaySound("audio/reject_sfx.wav", 20, false, 0.6);
+			} else {
+				if (allowSounds) {
+					static int prior = 0;
+					int r = 0;
+					while (r == prior) r = GetRandomByte() % 3;
+					prior = r;
+					if (r == 0) PlaySound("audio/dice_roll_1.wav", 21, false, 1.0);
+					if (r == 1) PlaySound("audio/dice_roll_2.wav", 21, false, 1.0);
+					if (r == 2) PlaySound("audio/dice_roll_3.wav", 21, false, 1.0);
+				}
+			}
+
+			bool doorsDown = false;
+			static bool previousDoorsDown = false;
+
+			for (int i = 0; i < MAX_ENTITIES; i++) {
+				if ((entities[i].slot == SLOT_USED) && (entities[i].tag == TAG_BUTTON)) {
+					if (EntityFind(entities[i].x, entities[i].y, 1, 1, 0, FLAG_HEAVY, NULL)) {
+						doorsDown = !doorsDown;
+					}
+				}
+			}
+
+			if (previousDoorsDown != doorsDown && allowSounds) {
+				PlaySound("audio/door_move_sfx.wav", 23, false, 0.6);
+			}
+
+			previousDoorsDown = doorsDown;
+
+			for (int i = 0; i < MAX_ENTITIES; i++) {
+				if ((entities[i].slot == SLOT_USED) && (entities[i].tag == TAG_DOOR)) {
+					if (doorsDown) entities[i].flags &= ~FLAG_SOLID;
+					else entities[i].flags |= FLAG_SOLID;
+					entities[i].stepsPerFrame = doorsDown ? -2 : -1;
+				}
+			}
+		}
+	} else {
+		movementTick++;
+
+#if 0
+		if (movementTick >= MOVEMENT_TIME - 1) {
+			if (keysHeld[KEY_LEFT]) {
+				movementQX = -1;
+				movementQY = 0;
+			} else if (keysHeld[KEY_RIGHT]) {
+				movementQX = 1;
+				movementQY = 0;
+			} else if (keysHeld[KEY_UP]) {
+				movementQX = 0;
+				movementQY = -1;
+			} else if (keysHeld[KEY_DOWN]) {
+				movementQX = 0;
+				movementQY = 1;
+			}
+		} else {
+			movementQX = movementQY = 0;
+		}
+#endif
+	}
+
+	return false;
+}
+
+void DrawGlyph(int *x, int *y, int c, int i) {
+	if (c == '\n') {
+		*y = *y + 12;
+		*x = 0;
+	} else {
+		Texture texture = { 0 };
+
+		if (c >= 'a' && c <= 'l') {
+			texture = TextureSub(font, (c - 'a') * 8, 8 * 0, 8, 8);
+		} else if (c >= 'm' && c <= 'x') {
+			texture = TextureSub(font, (c - 'm') * 8, 8 * 1, 8, 8);
+		} else if (c >= 'y' && c <= 'z') {
+			texture = TextureSub(font, (c - 'y') * 8, 8 * 2, 8, 8);
+		} else if (c >= '0' && c <= '9') {
+			texture = TextureSub(font, (c - '0') * 8 + 8 * 2, 8 * 2, 8, 8);
+		}
+
+		Blend(texture, *x + fontOffsetX[i % 50], *y + fontOffsetY[i % 50], 
+				wonTick == 0 ? 0xFF : wonTick * 5);
+		*x = *x + 8;
+	}
+}
+
 void Controller(Entity *entity, int message) {
 	if (message == MSG_DRAW) {
 		if (levelNameTick == 0 && wonTick == 0) {
@@ -202,7 +599,27 @@ void Controller(Entity *entity, int message) {
 			Blit(TextureSub(tileset, 3 * 16, 4 * 16, 16, 16), 4 * 16, 1 * 16);
 			Blit(TextureSub(tileset, 3 * 16, 4 * 16, 16, 16), 4 * 16, 2 * 16);
 			Blit(TextureSub(tileset, 3 * 16, 4 * 16, 16, 16), 4 * 16, 3 * 16);
+
+			const char *hint = levels[currentLevel][14];
+			int x = 0, y = 8;
+
+			for (int i = 0; hint[i]; i++) {
+				char c = hint[i];
+
+				if (!x) {
+					int lc = 0;
+
+					for (int j = i; hint[j] && hint[j] != '\n'; j++) {
+						lc++;
+					}
+
+					x = GAME_WIDTH - lc * 8;
+				}
+
+				DrawGlyph(&x, &y, c, i);
+			}
 		} else {
+			const char *levelName = levels[currentLevel][13];
 			int lc = 4;
 			for (int i = 0; levelName[i]; i++) if (levelName[i] == '\n') lc++;
 
@@ -226,260 +643,11 @@ void Controller(Entity *entity, int message) {
 					x = GAME_WIDTH / 2 - lc * 8 / 2;
 				}
 
-				if (c == '\n') {
-					y += 12;
-					x = 0;
-				} else {
-					Texture texture = { 0 };
-
-					if (c >= 'a' && c <= 'l') {
-						texture = TextureSub(font, (c - 'a') * 8, 8 * 0, 8, 8);
-					} else if (c >= 'm' && c <= 'x') {
-						texture = TextureSub(font, (c - 'm') * 8, 8 * 1, 8, 8);
-					} else if (c >= 'y' && c <= 'z') {
-						texture = TextureSub(font, (c - 'y') * 8, 8 * 2, 8, 8);
-					} else if (c >= '0' && c <= '9') {
-						texture = TextureSub(font, (c - '0') * 8 + 8 * 2, 8 * 2, 8, 8);
-					}
-
-					Blend(texture, x + fontOffsetX[i % 50], y + fontOffsetY[i % 50], 
-							wonTick == 0 ? 0xFF : wonTick * 5);
-					x += 8;
-				}
+				DrawGlyph(&x, &y, c, i);
 			}
 		}
 	} else if (message == MSG_STEP) {
-		if (levelNameTick != 0) {
-			if (levelNameTick == 1) {
-				Load();
-			}
-
-			levelNameTick++;
-
-			if (levelNameTick == 180) {
-				levelNameTick = 0;
-			}
-
-			if ((levelNameTick % 40) == 0) {
-				for (int i = 0; i < 50; i++) {
-					fontOffsetX[i] = GetRandomByte() & 1;
-					fontOffsetY[i] = GetRandomByte() & 1;
-				}
-			}
-		} else if (wonTick != 0) {
-			wonTick++;
-
-			if (wonTick == 45) {
-				wonTick = 0;
-				levelNameTick = 1;
-
-				for (int i = 0; i < MAX_ENTITIES; i++) {
-					if ((entities[i].slot & SLOT_USED) && entities[i].message != Controller) {
-						EntityDestroy(&entities[i]);
-					}
-				}
-			}
-		} else if (movementTick == 0) {
-			if (keysHeld[KEY_LEFT]) {
-				movementTick = 1;
-				movementX = -1;
-				movementY = 0;
-			} else if (keysHeld[KEY_RIGHT]) {
-				movementTick = 1;
-				movementX = 1;
-				movementY = 0;
-			} else if (keysHeld[KEY_UP]) {
-				movementTick = 1;
-				movementX = 0;
-				movementY = -1;
-			} else if (keysHeld[KEY_DOWN]) {
-				movementTick = 1;
-				movementX = 0;
-				movementY = 1;
-			} else if (movementQX || movementQY) {
-				movementTick = 1;
-				movementX = movementQX;
-				movementY = movementQY;
-			}
-		} else if (movementTick == 1) {
-			int newX = player->x + movementX * 16;
-			int newY = player->y + movementY * 16;
-			bool valid = true;
-
-			while (true) {
-				if (EntityFind(newX, newY, 1, 1, 0, FLAG_PUSH, NULL)) {
-					newX += movementX * 16;
-					newY += movementY * 16;
-					continue;
-				}
-
-				if (EntityFind(newX, newY, 1, 1, 0, FLAG_SOLID, NULL)) {
-					valid = false;
-				}
-
-				break;
-			}
-			
-			if (!valid) {
-				movementTick = 0;
-				movementQX = movementQY = 0;
-				PlaySound("audio/bump_sfx.wav", 18, false, 1.0);
-			} else {
-				movementTick++;
-
-				newX = player->x + movementX * 16;
-				newY = player->y + movementY * 16;
-
-				if (EntityFind(newX, newY, 1, 1, TAG_ICE, 0, NULL)) {
-					PlaySound("audio/slip_sfx.wav", 18, false, 1.0);
-				}
-
-				bool pushing = false;
-
-				while (true) {
-					Entity *push = EntityFind(newX, newY, 1, 1, 0, FLAG_PUSH, NULL);
-
-					if (push) {
-						push->push.pushing = true;
-						pushing = true;
-						newX += movementX * 16;
-						newY += movementY * 16;
-						continue;
-					}
-
-					break;
-				}
-
-				if (pushing) {
-					PlaySound("audio/crate_sfx.wav", 19, false, 0.9);
-				}
-			}
-		} else if (movementTick == MOVEMENT_TIME) {
-			movementTick = 0;
-
-			if (movementX == -1) {
-				int t = dice[0];
-				dice[0] = dice[2];
-				dice[2] = dice[1];
-				dice[1] = dice[3];
-				dice[3] = t;
-				player->x -= 16;
-			} else if (movementX == 1) {
-				int t = dice[0];
-				dice[0] = dice[3];
-				dice[3] = dice[1];
-				dice[1] = dice[2];
-				dice[2] = t;
-				player->x += 16;
-			} else if (movementY == -1) {
-				int t = dice[0];
-				dice[0] = dice[4];
-				dice[4] = dice[1];
-				dice[1] = dice[5];
-				dice[5] = t;
-				player->y -= 16;
-			} else if (movementY == 1) {
-				int t = dice[0];
-				dice[0] = dice[5];
-				dice[5] = dice[1];
-				dice[1] = dice[4];
-				dice[4] = t;
-				player->y += 16;
-			}
-
-			for (int i = 0; i < MAX_ENTITIES; i++) {
-				if ((entities[i].slot & SLOT_USED) && (entities[i].flags & FLAG_PUSH) && entities[i].push.pushing) {
-					entities[i].x += movementX * 16;
-					entities[i].y += movementY * 16;
-					entities[i].push.pushing = false;
-				}
-			}
-
-			Entity *ice = EntityFind(player->x, player->y, 1, 1, TAG_ICE, 0, NULL);
-
-			if (ice) {
-				movementTick = 1;
-			} else {
-				Entity *goal = EntityFind(player->x, player->y, 1, 1, TAG_GOAL, 0, NULL);
-
-				if (goal) {
-					wonTick = 1;
-					PlaySound("audio/win_sfx.wav", 17, false, 0.8);
-
-					for (int i = 0; i < 20; i++) {
-						Entity *entity = EntityCreate(&templateStar, player->x, player->y, 0);
-						float speed = (GetRandomByte() / 255.0f) * 2.0f + 1.0f;
-						float angle = (GetRandomByte() / 255.0f) * 6.25f;
-						entity->dx = speed * EsCRTcosf(angle);
-						entity->dy = speed * EsCRTsinf(angle);
-					}
-				}
-
-				Entity *check = EntityFind(player->x, player->y, 1, 1, TAG_CHECK, 0, NULL);
-
-				if (check && dice[1] != check->check.target) {
-					movementX = -movementX;
-					movementY = -movementY;
-					movementTick = 1;
-					PlaySound("audio/reject_sfx.wav", 20, false, 0.6);
-				} else {
-					static int prior = 0;
-					int r = 0;
-					while (r == prior) r = GetRandomByte() % 3;
-					prior = r;
-					if (r == 0) PlaySound("audio/dice_roll_1.wav", 21, false, 1.0);
-					if (r == 1) PlaySound("audio/dice_roll_2.wav", 21, false, 1.0);
-					if (r == 2) PlaySound("audio/dice_roll_3.wav", 21, false, 1.0);
-				}
-
-				bool doorsDown = false;
-				static bool previousDoorsDown = false;
-
-				for (int i = 0; i < MAX_ENTITIES; i++) {
-					if ((entities[i].slot & SLOT_USED) && (entities[i].tag == TAG_BUTTON)) {
-						if (EntityFind(entities[i].x, entities[i].y, 1, 1, 0, FLAG_HEAVY, NULL)) {
-							doorsDown = !doorsDown;
-						}
-					}
-				}
-
-				if (previousDoorsDown != doorsDown) {
-					PlaySound("audio/door_move_sfx.wav", 23, false, 0.6);
-				}
-
-				previousDoorsDown = doorsDown;
-
-				for (int i = 0; i < MAX_ENTITIES; i++) {
-					if ((entities[i].slot & SLOT_USED) && (entities[i].tag == TAG_DOOR)) {
-						if (doorsDown) entities[i].flags &= ~FLAG_SOLID;
-						else entities[i].flags |= FLAG_SOLID;
-						entities[i].stepsPerFrame = doorsDown ? -2 : -1;
-					}
-				}
-			}
-		} else {
-			movementTick++;
-
-#if 0
-			if (movementTick >= MOVEMENT_TIME - 1) {
-				if (keysHeld[KEY_LEFT]) {
-					movementQX = -1;
-					movementQY = 0;
-				} else if (keysHeld[KEY_RIGHT]) {
-					movementQX = 1;
-					movementQY = 0;
-				} else if (keysHeld[KEY_UP]) {
-					movementQX = 0;
-					movementQY = -1;
-				} else if (keysHeld[KEY_DOWN]) {
-					movementQX = 0;
-					movementQY = 1;
-				}
-			} else {
-				movementQX = movementQY = 0;
-			}
-#endif
-		}
+		ControllerStep(true /* allowSounds */, keysHeld);
 	}
 }
 
@@ -504,7 +672,6 @@ void Wall(Entity *entity, int message) {
 }
 
 void Load() {
-	memcpy(levelName, "level 1\nit begins", 18);
 	dice[0] = 1;
 	dice[1] = 6;
 	dice[2] = 2;
@@ -514,7 +681,7 @@ void Load() {
 
 	for (int i = 0; i < 13; i++) {
 		for (int j = 0; j < 20; j++) {
-			char c = level1[i][j];
+			char c = levels[currentLevel][i][j];
 			if (c == '.') continue;
 			Entity *tile = EntityCreate(NULL, j * 16, i * 16, 0);
 
@@ -608,18 +775,18 @@ void GameInitialise(uint32_t save) {
 	templateStar.stepsPerFrame = 4;
 	templateStar.frameCount = 16;
 
-	Entity *controller = EntityCreate(NULL, 0, 0, 0);
+	controller = EntityCreate(NULL, 0, 0, 0);
 	controller->message = Controller;
 	controller->layer = 3;
 
-	// PlaySound("audio/bgm.opus", 14, true, 0.5);
+	PlaySound("audio/bgm.opus", 14, true, 0.5);
 }
 
 void GameUpdate() {
 	for (int i = 0; i < MAX_ENTITIES; i++) {
 		Entity *entity = entities + i;
 
-		if (entity->slot & SLOT_USED) {
+		if (entity->slot == SLOT_USED) {
 			entity->x += entity->dx;
 			entity->y += entity->dy;
 			entity->message(entity, MSG_STEP);

@@ -51,7 +51,18 @@ int CanvasMessage(UIElement *element, UIMessage message, int di, void *dp) {
 		else if (code == UI_KEYCODE_RIGHT) code = KEY_RIGHT;
 		else if (code == UI_KEYCODE_UP) code = KEY_UP;
 		else if (code == UI_KEYCODE_DOWN) code = KEY_DOWN;
-		else code = 0;
+		else if (code == UI_KEYCODE_BACKSPACE) code = KEY_BACK;
+		else if (code == UI_KEYCODE_ENTER && message == UI_MSG_KEY_TYPED) {
+			for (int i = 0; i < MAX_ENTITIES; i++) {
+				if ((entities[i].slot & SLOT_USED) && &entities[i] != controller) {
+					EntityDestroy(&entities[i]);
+				}
+			}
+			undoPosition = 0;
+			currentLevel++;
+			Load();
+			code = 0;
+		} else code = 0;
 		if (code) HandleEvent(message == UI_MSG_KEY_RELEASED ? 2 : 1, code);
 	}
 
