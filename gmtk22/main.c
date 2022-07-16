@@ -123,15 +123,16 @@ void BlitScaled(Texture texture, int32_t x, int32_t y, int32_t w, int32_t h) {
 			uint32_t ty = i * texture.height / h;
 
 			if (tx < (uint32_t) texture.width && ty < (uint32_t) texture.height
-					&& (uint32_t) (i + y) < (uint32_t) GAME_WIDTH && (uint32_t) (j + x) < (uint32_t) GAME_HEIGHT) {
+					&& (uint32_t) (i + y) < (uint32_t) GAME_HEIGHT && (uint32_t) (j + x) < (uint32_t) GAME_WIDTH) {
 				imageData[(i + y) * GAME_WIDTH + (j + x)] = texture.bits[ty * texture.stride + tx];
 			}
 		}
 	}
 }
 
-void Blend(Texture texture, int32_t x, int32_t y, uint32_t alpha) {
+void Blend(Texture texture, int32_t x, int32_t y, int32_t alpha) {
 	if (!ClipToGameBounds(&texture, &x, &y)) return;
+	if (alpha < 0) return;
 
 	for (int32_t i = 0; i < texture.height; i++) {
 		for (int32_t j = 0; j < texture.width; j++) {
@@ -155,7 +156,9 @@ void Blend(Texture texture, int32_t x, int32_t y, uint32_t alpha) {
 	}
 }
 
-void BlendScaled(Texture texture, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t alpha) {
+void BlendScaled(Texture texture, int32_t x, int32_t y, int32_t w, int32_t h, int32_t alpha) {
+	if (alpha < 0) return;
+
 	for (int32_t i = 0; i < h; i++) {
 		for (int32_t j = 0; j < w; j++) {
 			uint32_t tx = j * texture.width  / w;
@@ -207,9 +210,124 @@ float FadeInOut(float t) {
 	else return 1 - (t - 0.7f) / 0.3f;
 }
 
-float SmoothStep(float t) {
-	return t * t * (3 - 2 * t);
+float SmoothStep(float x) {
+	return x * x * x * (x * (x * 6 - 15) + 10);
 }
+
+#ifndef M_PI
+#define M_PI (3.14159)
+#endif
+
+typedef union ConvertFloatInteger {
+	float f;
+	uint32_t i;
+} ConvertFloatInteger;
+
+#define F(x) (((ConvertFloatInteger) { .i = (x) }).f)
+
+float EsCRTfloorf(float x) {
+	ConvertFloatInteger convert = {x};
+	uint32_t sign = convert.i & 0x80000000;
+	int exponent = (int) ((convert.i >> 23) & 0xFF) - 0x7F;
+
+	if (exponent >= 23) {
+		// There aren't any bits representing a fractional part.
+	} else if (exponent >= 0) {
+		// Positive exponent.
+		uint32_t mask = 0x7FFFFF >> exponent;
+		if (!(mask & convert.i)) return x; // Already an integer.
+		if (sign) convert.i += mask;
+		convert.i &= ~mask; // Mask out the fractional bits.
+	} else if (exponent < 0) {
+		// Negative exponent.
+		return sign ? -1.0 : 0.0;
+	}
+
+	return convert.f;
+}
+
+float _SineFloat(float x) {
+	// Calculates sin(x) for x in [0, pi/4].
+
+	float x2 = x * x;
+
+	return x * (F(0x3F800000) + x2 * (F(0xBE2AAAA0) + x2 * (F(0x3C0882C0) + x2 * F(0xB94C6000))));
+}
+
+float _CosineFloat(float x) {
+	// Calculates cos(x) for x in [0, pi/4].
+
+	float x2 = x * x;
+
+	return F(0x3F800000) + x2 * (F(0xBEFFFFDA) + x2 * (F(0x3D2A9F60) + x2 * F(0xBAB22C00)));
+}
+
+float EsCRTsinf(float x) {
+	bool negate = false;
+
+	// x in -infty, infty
+
+	if (x < 0) {
+		x = -x;
+		negate = true;
+	}
+
+	// x in 0, infty
+
+	x -= 2 * M_PI * EsCRTfloorf(x / (2 * M_PI));
+
+	// x in 0, 2*pi
+
+	if (x < M_PI / 2) {
+	} else if (x < M_PI) {
+		x = M_PI - x;
+	} else if (x < 3 * M_PI / 2) {
+		x = x - M_PI;
+		negate = !negate;
+	} else {
+		x = M_PI * 2 - x;
+		negate = !negate;
+	}
+
+	// x in 0, pi/2
+
+	float y = x < M_PI / 4 ? _SineFloat(x) : _CosineFloat(M_PI / 2 - x);
+	return negate ? -y : y;
+}
+
+float EsCRTcosf(float x) {
+	bool negate = false;
+
+	// x in -infty, infty
+
+	if (x < 0) {
+		x = -x;
+	}
+
+	// x in 0, infty
+
+	x -= 2 * M_PI * EsCRTfloorf(x / (2 * M_PI));
+
+	// x in 0, 2*pi
+
+	if (x < M_PI / 2) {
+	} else if (x < M_PI) {
+		x = M_PI - x;
+		negate = !negate;
+	} else if (x < 3 * M_PI / 2) {
+		x = x - M_PI;
+		negate = !negate;
+	} else {
+		x = M_PI * 2 - x;
+	}
+
+	// x in 0, pi/2
+
+	float y = x < M_PI / 4 ? _CosineFloat(x) : _SineFloat(M_PI / 2 - x);
+	return negate ? -y : y;
+}
+
+#undef F
 
 #include "game.c"
 
