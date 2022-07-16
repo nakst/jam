@@ -39,8 +39,8 @@
 		</noscript>
 
 		<script>
-			gameWidth = 512;
-			gameHeight = 288;
+			gameWidth = 320;
+			gameHeight = 200;
 			panic = false;
 			initialised = false;
 			sounds = {};
@@ -62,10 +62,11 @@
 				window.requestAnimationFrame(UpdateFrame);
 			}
 
-			function PlaySound(name, nameBytes, loop) {
+			function PlaySound(name, nameBytes, loop, volume) {
 				name = new TextDecoder().decode(new Uint8Array(memory.buffer, name, nameBytes));
 				if (!(name in sounds)) sounds[name] = new Audio(name);
 				sounds[name].loop = !!loop;
+				sounds[name].volume = volume;
 				sounds[name].play();
 			}
 

@@ -2,8 +2,8 @@
 #include "../luigi2.h"
 uint8_t heapBase[64 * 1024 * 1024];
 #define __heap_base (heapBase[0])
-#include "main.c"
 #include <stdio.h>
+#include "main.c"
 
 void LogInteger(uint32_t x) { 
 	fprintf(stderr, "%d\n", x); 
@@ -14,7 +14,7 @@ void Panic() {
 	while (1); 
 }
 
-void PlaySound(const char *name, uint32_t nameBytes, bool loop) { 
+void PlaySound(const char *name, uint32_t nameBytes, bool loop, double volume) { 
 	// TODO.
 	fprintf(stderr, "%s '%.*s'\n", loop ? "loop" : "oneshot", (int) nameBytes, name); 
 }
@@ -64,7 +64,7 @@ int main() {
 	if (f) { fread(&save, 1, 4, f); fclose(f); }
 	Initialise(save);
 	UIInitialise();
-	UIWindowCreate(0, UI_ELEMENT_PARENT_PUSH, "gmtk22", GAME_WIDTH, GAME_HEIGHT);
+	UIWindowCreate(0, UI_ELEMENT_PARENT_PUSH, "gmtk22", GAME_WIDTH * 3, GAME_HEIGHT * 3);
 	UIElement *canvas = UIElementCreate(sizeof(UIElement), 0, 0, CanvasMessage, "Canvas");
 	UIElementAnimate(canvas, false);
 	UIElementFocus(canvas);

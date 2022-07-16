@@ -2,8 +2,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define GAME_WIDTH  (512)
-#define GAME_HEIGHT (288)
+#define GAME_WIDTH  (320)
+#define GAME_HEIGHT (200)
 #define GAME_FPS    (60)
 
 #ifdef DEFMEM
@@ -37,7 +37,7 @@ extern uint8_t __heap_base;
 void LogInteger(uint32_t x);
 void Save(uint32_t x);
 void Panic();
-void PlaySound(const char *name, uint32_t nameBytes, bool loop);
+void PlaySound(const char *name, uint32_t nameBytes, bool loop, double volume);
 
 #include "png_decoder.c"
 #include "bin/embed.h"
@@ -58,9 +58,17 @@ uint8_t *allocatorPosition = &__heap_base + GAME_WIDTH * GAME_HEIGHT * 4;
 uint32_t previousTimeMs;
 uint8_t keysHeld[256];
 
+uint64_t randomSeed;
+
+uint8_t GetRandomByte() {
+	randomSeed = randomSeed * 214013 + 2531011;
+	return (uint8_t) (randomSeed >> 16);
+}
+
 void *Allocate(size_t bytes) {
 	uint8_t *p = allocatorPosition;
 	allocatorPosition += bytes;
+	memset(p, 0, bytes);
 	return p;
 }
 
@@ -108,6 +116,20 @@ void Blit(Texture texture, int32_t x, int32_t y) {
 	}
 }
 
+void BlitScaled(Texture texture, int32_t x, int32_t y, int32_t w, int32_t h) {
+	for (int32_t i = 0; i < h; i++) {
+		for (int32_t j = 0; j < w; j++) {
+			uint32_t tx = j * texture.width  / w;
+			uint32_t ty = i * texture.height / h;
+
+			if (tx < (uint32_t) texture.width && ty < (uint32_t) texture.height
+					&& (uint32_t) (i + y) < (uint32_t) GAME_WIDTH && (uint32_t) (j + x) < (uint32_t) GAME_HEIGHT) {
+				imageData[(i + y) * GAME_WIDTH + (j + x)] = texture.bits[ty * texture.stride + tx];
+			}
+		}
+	}
+}
+
 void Blend(Texture texture, int32_t x, int32_t y, uint32_t alpha) {
 	if (!ClipToGameBounds(&texture, &x, &y)) return;
 
@@ -133,16 +155,48 @@ void Blend(Texture texture, int32_t x, int32_t y, uint32_t alpha) {
 	}
 }
 
+void BlendScaled(Texture texture, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t alpha) {
+	for (int32_t i = 0; i < h; i++) {
+		for (int32_t j = 0; j < w; j++) {
+			uint32_t tx = j * texture.width  / w;
+			uint32_t ty = i * texture.height / h;
+
+			if (tx >= (uint32_t) texture.width || ty >= (uint32_t) texture.height
+					|| (uint32_t) (i + y) >= (uint32_t) GAME_HEIGHT || (uint32_t) (j + x) >= (uint32_t) GAME_WIDTH) {
+				continue;
+			}
+
+			uint32_t *destinationPixel = &imageData[(i + y) * GAME_WIDTH + (j + x)];
+			uint32_t modified = texture.bits[ty * texture.stride + tx];
+			uint32_t m1 = (((modified & 0xFF000000) >> 24) * alpha) >> 8;
+
+			if (m1 >= 0xFE) {
+				*destinationPixel = modified;
+			} else if (m1 != 0x00) {
+				uint32_t m2 = 255 - m1;
+				uint32_t original = *destinationPixel;
+				uint32_t r2 = m2 * (original & 0x00FF00FF);
+				uint32_t g2 = m2 * (original & 0x0000FF00);
+				uint32_t r1 = m1 * (modified & 0x00FF00FF);
+				uint32_t g1 = m1 * (modified & 0x0000FF00);
+				uint32_t result = 0xFF000000 | (0x0000FF00 & ((g1 + g2) >> 8)) | (0x00FF00FF & ((r1 + r2) >> 8));
+				*destinationPixel = result;
+			}
+		}
+	}
+}
+
 void Fill(int32_t x, int32_t y, int32_t width, int32_t height, uint32_t color) {
 	int32_t l = x, r = x + width, t = y, b = y + height;
 	if (l < 0) l = 0;
 	if (r > GAME_WIDTH) r = GAME_WIDTH;
 	if (t < 0) t = 0;
 	if (b > GAME_HEIGHT) b = GAME_HEIGHT;
+	color = (color & 0xFF00) | ((color & 0xFF0000) >> 16) | ((color & 0xFF) << 16);
 
 	for (int32_t i = t; i < b; i++) {
 		for (int32_t j = l; j < r; j++) {
-			imageData[i * GAME_WIDTH + j] = color;
+			imageData[i * GAME_WIDTH + j] = color | 0xFF000000;
 		}
 	}
 }
@@ -153,9 +207,14 @@ float FadeInOut(float t) {
 	else return 1 - (t - 0.7f) / 0.3f;
 }
 
+float SmoothStep(float t) {
+	return t * t * (3 - 2 * t);
+}
+
 #include "game.c"
 
 void Initialise(uint32_t save) {
+	randomSeed = 1347135;
 	GameInitialise(save);
 }
 
@@ -165,7 +224,7 @@ void GenerateFrame(uint32_t timeMs) {
 	}
 
 	if (timeMs - previousTimeMs > 500) {
-		timeMs = previousTimeMs + 500; // Limit frames to process if lagging.
+		previousTimeMs = timeMs - 500; // Limit frames to process if lagging.
 	}
 
 	while (previousTimeMs + 1000 / GAME_FPS < timeMs) {
