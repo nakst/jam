@@ -52,17 +52,26 @@ int CanvasMessage(UIElement *element, UIMessage message, int di, void *dp) {
 		else if (code == UI_KEYCODE_UP) code = KEY_UP;
 		else if (code == UI_KEYCODE_DOWN) code = KEY_DOWN;
 		else if (code == UI_KEYCODE_BACKSPACE) code = KEY_BACK;
-		else if (code == UI_KEYCODE_ENTER && message == UI_MSG_KEY_TYPED) {
+		else if ((code == UI_KEYCODE_FKEY(1) || code == UI_KEYCODE_FKEY(2)) && message == UI_MSG_KEY_TYPED) {
 			for (int i = 0; i < MAX_ENTITIES; i++) {
 				if ((entities[i].slot & SLOT_USED) && &entities[i] != controller) {
 					EntityDestroy(&entities[i]);
 				}
 			}
 			undoPosition = 0;
-			currentLevel++;
+			currentLevel += code == UI_KEYCODE_FKEY(2) ? 1 : -1;
 			Load();
+			movementTick = 0;
+			levelNameTick = 0;
 			code = 0;
-		} else code = 0;
+		} else if (code == UI_KEYCODE_LETTER('W')) code = 'W';
+		else if (code == UI_KEYCODE_LETTER('A')) code = 'A';
+		else if (code == UI_KEYCODE_LETTER('S')) code = 'S';
+		else if (code == UI_KEYCODE_LETTER('D')) code = 'D';
+		else if (code == UI_KEYCODE_LETTER('Z')) code = 'Z';
+		else if (code == UI_KEYCODE_LETTER('M')) code = 'M';
+		else if (code == UI_KEYCODE_LETTER('R')) code = 'R';
+		else code = 0;
 		if (code) HandleEvent(message == UI_MSG_KEY_RELEASED ? 2 : 1, code);
 	}
 

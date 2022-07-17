@@ -211,6 +211,36 @@ void Fill(int32_t x, int32_t y, int32_t width, int32_t height, uint32_t color) {
 	}
 }
 
+void FillBlend(int32_t x, int32_t y, int32_t width, int32_t height, uint32_t color) {
+	int32_t l = x, r = x + width, t = y, b = y + height;
+	if (l < 0) l = 0;
+	if (r > GAME_WIDTH) r = GAME_WIDTH;
+	if (t < 0) t = 0;
+	if (b > GAME_HEIGHT) b = GAME_HEIGHT;
+	color = (color & 0xFF00FF00) | ((color & 0xFF0000) >> 16) | ((color & 0xFF) << 16);
+
+	for (int32_t i = t; i < b; i++) {
+		for (int32_t j = l; j < r; j++) {
+			uint32_t *destinationPixel = &imageData[(i + y) * GAME_WIDTH + (j + x)];
+			uint32_t modified = color;
+			uint32_t m1 = color >> 24;
+
+			if (m1 >= 0xFE) {
+				*destinationPixel = modified;
+			} else if (m1 != 0x00) {
+				uint32_t m2 = 255 - m1;
+				uint32_t original = *destinationPixel;
+				uint32_t r2 = m2 * (original & 0x00FF00FF);
+				uint32_t g2 = m2 * (original & 0x0000FF00);
+				uint32_t r1 = m1 * (modified & 0x00FF00FF);
+				uint32_t g1 = m1 * (modified & 0x0000FF00);
+				uint32_t result = 0xFF000000 | (0x0000FF00 & ((g1 + g2) >> 8)) | (0x00FF00FF & ((r1 + r2) >> 8));
+				*destinationPixel = result;
+			}
+		}
+	}
+}
+
 float FadeInOut(float t) {
 	if (t < 0.3f) return t / 0.3f;
 	else if (t < 0.7f) return 1;

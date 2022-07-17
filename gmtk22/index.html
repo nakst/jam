@@ -67,7 +67,7 @@
 				if (!(name in sounds)) sounds[name] = new Audio(name);
 				sounds[name].loop = !!loop;
 				sounds[name].volume = volume;
-				sounds[name].play();
+				if (volume != 0.0) sounds[name].play();
 			}
 
 			async function Initialise() {
