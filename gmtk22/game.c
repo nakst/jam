@@ -1,5 +1,3 @@
-// TODO Last puzzle. Ideas: using a crate for leverage on ice; stepping off a button and onto a door for one-way.
-
 #define SLOT_USED       (1 << 0)
 #define SLOT_DESTROYING (1 << 1)
 
@@ -197,6 +195,25 @@ const char *levels[][16] = {
 
 	{
 		"/////...............",
+		"/////....######.....",
+		"/////....#     #....",
+		"/////....#i### #....",
+		"/////#####i###i#....",
+		"....#  db1   2i###..",
+		"...##  ###i###i g#..",
+		".### # ###i###i###..",
+		".#   c  ## p   #....",
+		".# bc c ########....",
+		".#########..........",
+		".....#####..........",
+		"....................",
+		"level 6\nthe warehouse",
+		"",
+		"41",
+	},
+
+	{
+		"/////...............",
 		"/////...............",
 		"/////...............",
 		"/////..#########....",
@@ -209,28 +226,9 @@ const char *levels[][16] = {
 		".....##########.....",
 		"....................",
 		"....................",
-		"level 6\narctic maze",
+		"level 7\narctic maze",
 		"",
 		"25",
-	},
-
-	{
-		"/////...............",
-		"/////...............",
-		"/////....####.......",
-		"/////....#  #.......",
-		"/////....#g  #......",
-		".........#   #......",
-		".........# p #......",
-		".........#   #......",
-		".........#####......",
-		"....................",
-		"....................",
-		"....................",
-		"....................",
-		"level 7\nit doesnt exist yet",
-		"",
-		"99",
 	},
 
 	{
@@ -602,7 +600,7 @@ bool ControllerStep(bool allowSounds, uint8_t *keysHeld) {
 				movementX = -movementX;
 				movementY = -movementY;
 				movementTick = 1;
-				if (allowSounds) PlaySound("audio/reject_sfx.wav", 20, false, 0.6);
+				if (allowSounds) PlaySound("audio/reject_sfx.wav", 20, false, 0.9);
 			} else {
 				if (allowSounds) {
 					static int prior = 0;
@@ -797,7 +795,7 @@ void Controller(Entity *entity, int message) {
 			}
 		}
 	} else if (message == MSG_STEP) {
-		ControllerStep(true /* allowSounds */, keysHeld);
+		ControllerStep(currentLevel != 7 /* allowSounds */, keysHeld);
 	}
 }
 
@@ -988,6 +986,7 @@ void GameInitialise(uint32_t save) {
 	PlaySound("audio/slip_sfx.wav", 18, false, 0.0);
 	PlaySound("audio/crate_sfx.wav", 19, false, 0.0);
 	PlaySound("audio/win_sfx.wav", 17, false, 0.0);
+	PlaySound("audio/win_sfx_par.wav", 21, false, 0.0);
 	PlaySound("audio/reject_sfx.wav", 20, false, 0.0);
 	PlaySound("audio/dice_roll_1.wav", 21, false, 0.0);
 	PlaySound("audio/dice_roll_2.wav", 21, false, 0.0);
