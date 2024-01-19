@@ -1,0 +1,31 @@
+void Start() {
+	PathCreateDirectory("bin");
+
+	Log("generating bin/embed.h");
+	str out = "";
+	for str file in DirectoryEnumerate("embed"):assert() {
+		str name = "";
+		for str c in file {
+			name += c if CharacterIsAlnum(c) else "_";
+		}
+		out += "const uint8_t %name%[] = {";
+		for str c in FileReadAll("embed/%file%"):assert() {
+			out += "%c:byte(0)%,";
+		}
+		out += "};\n";
+	}
+	FileWriteAll("bin/embed.h", out);
+
+	// assert SystemShellExecute("clang -o bin/lb -lX11 luigi_backend.c -fsanitize=address -g -D UI_LINUX");
+	// assert SystemShellExecute("x86_64-w64-mingw32-gcc -o bin/lb.exe luigi_backend.c -D UI_WINDOWS -O2 -luser32 -lkernel32 -lgdi32");
+	assert SystemShellExecute("clang --target=wasm32 -c -O2 -flto -DDEFMEM -nostdlib -Wall -Wextra -Wno-unused-parameter -o bin/main.o main.c");
+	assert SystemShellExecute("wasm-ld --no-entry --export=__heap_base "
+			+ "--export=GenerateFrame --export=Initialise --export=HandleEvent "
+			+ "--allow-undefined --import-memory --initial-memory=16777216 -o bin/game.wasm bin/main.o");
+	PathDelete("bin/game.zip");
+	assert SystemShellExecute("zip -q bin/game.zip index.html bin/game.wasm audio/*");
+}
+
+// ../integrate/bin/shrink_png embed/*.png
+// ffmpeg -i track1.wav -b:a 64k track1.opus
+
