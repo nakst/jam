@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Game</title>
+
+		<meta charset="utf-8">
+
+		<style>
+			* {
+				margin: 0;
+				padding: 0;
+			}
+
+			html {
+				height: 100%;
+			}
+
+			body {
+				height: 100%;
+				background-color: black;
+				display: flex;
+				justify-content: center;
+			}
+
+			#canvas {
+				position: absolute;
+				height: 100%;
+				image-rendering: crisp-edges;
+				image-rendering: pixelated;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="canvas">
+		</canvas>
+
+		<div id="startmsg" style="color:white;font-size:20px;padding:40px">Click here to start!</div>
+
+		<noscript>
+			Please enable JavaScript in your browser to play this game.
+		</noscript>
+
+		<script>
+			gameWidth = 75;
+			gameHeight = 75;
+			panic = false;
+			initialised = false;
+			loopingSound = "none";
+			sounds = {};
+			canvas = document.getElementById("canvas");
+			context = canvas.getContext("2d");
+			canvas.width = gameWidth;
+			canvas.height = gameHeight;
+
+			function UpdateFrame() {
+				if (panic) return;
+				instance.exports.GenerateFrame(Date.now());
+				context.putImageData(imageData, 0, 0);
+				window.requestAnimationFrame(UpdateFrame);
+			}
+
+			function PlaySound(name, nameBytes, loop, volume) {
+				name = new TextDecoder().decode(new Uint8Array(memory.buffer, name, nameBytes));
+				if (!(name in sounds)) sounds[name] = new Audio(name);
+				sounds[name].loop = !!loop;
+				sounds[name].volume = volume;
+				if (loop == -1) {
+					sounds[name].pause();
+					return;
+				}
+				if (volume != 0.0) {
+					if (!sounds[name].loop) {
+						// sounds[name].currentTime = 0.0;
+						if (!sounds[name].paused) {
+							return;
+						}
+					}
+					sounds[name].play();
+				}
+				if (sounds[name].loop) {
+					if (loopingSound != "none") {
+						sounds[loopingSound].pause();
+					}
+					loopingSound = name;
+				}
+			}
+
+			async function Initialise() {
+				memory = new WebAssembly.Memory({ initial: 256 /* 16 MB; keep in sync with build.bat */ });
+				rom = await (await fetch("bin/game.wasm")).arrayBuffer();
+				environment = { memory: memory };
+				environment.LogInteger = (x) => { console.log(x); }; 
+				environment.Panic = () => { panic = true; console.log("Panic!"); }; 
+				environment.PlaySound = PlaySound;
+				instance = (await WebAssembly.instantiate(rom, { env: environment })).instance;
+				imageArray = new Uint8ClampedArray(memory.buffer, instance.exports.__heap_base.value, gameWidth * gameHeight * 4);
+				imageData = new ImageData(imageArray, gameWidth, gameHeight);
+				instance.exports.Initialise();
+				window.requestAnimationFrame(UpdateFrame);
+
+				window.addEventListener("keydown", (e) => {
+					if (/*e.repeat ||*/ e.keyCode > 255) return;
+					instance.exports.HandleEvent(1, e.keyCode);
+
+					// Prevent scrolling the page:
+					if (e.keyCode == 38 || e.keyCode == 40) { e.preventDefault(); }
+				});
+
+				window.addEventListener("keyup", (e) => {
+					if (e.keyCode > 255) return;
+					instance.exports.HandleEvent(2, e.keyCode);
+					if (e.keyCode == 38 || e.keyCode == 40) { e.preventDefault(); }
+				});
+			}
+
+			window.addEventListener("mousedown", (e) => { 
+				// Require a click to prevent audio blocking.
+				if (!initialised) Initialise(); 
+				initialised = true; 
+				document.getElementById("startmsg").remove();
+			});
+		</script>
+	</body>
+</html>
