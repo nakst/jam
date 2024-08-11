@@ -1,0 +1,25 @@
+void Start() {
+	PathCreateDirectory("bin");
+
+	str out = "";
+	for str file in DirectoryEnumerate("embed"):assert() {
+		str name = "";
+		for str c in file {
+			name += c if CharacterIsAlnum(c) else "_";
+		}
+		int size = FileGetSize("embed/%file%"):assert();
+		str embed = ".global __r%name%\\n.global _r%name%\\n__r%name%:\\n_r%name%:\\n"
+			+ ".incbin \\\"embed/%file%\\\"\\n.size __r%name%, %size%\\n.size _r%name%, %size%\\n\");\n";
+		out += "extern const uint8_t _r%name%[];\n#define %name% ((uint8_t *) _r%name%)\nsize_t %name%Bytes = %size%;\n";
+		out += "#ifdef DEFMEM\n__asm__(\".section .rodata,\\\"\\\",@\\n%embed%#else\n__asm__(\".section .rodata\\n%embed%#endif\n";
+	}
+	FileWriteAll("bin/embed.h", out);
+
+	str warnings = "-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-missing-field-initializers";
+	assert SystemShellExecute("clang --target=wasm32 -c -O2 -DDEFMEM -nostdlib %warnings% -o bin/main.o main.c");
+	assert SystemShellExecute("wasm-ld --no-entry --export=__heap_base "
+			+ "--export=GenerateFrame --export=Initialise --export=HandleEvent "
+			+ "--allow-undefined --import-memory --initial-memory=16777216 -o bin/game.wasm bin/main.o");
+	PathDelete("bin/game.zip");
+	assert SystemShellExecute("zip -q bin/game.zip index.html bin/game.wasm audio/*");
+}
